@@ -1,7 +1,7 @@
 (ns taptaprevo.dragdrop)
 
 (defn handle-file-select
-  [evt]
+  [f evt]
     (.stopPropagation evt)
     (.preventDefault evt)
     (let [files (.-files (.-dataTransfer evt))]
@@ -17,8 +17,7 @@
                                       (.slice file-content 4 idx))
                                     (.-name the-file))]
                     (.log js/console (str "file-name " file-name))
-                    ;(.set storage file-name file-content)
-                    ;(swap! list-of-code conj file-name)
+                    (f file-name file-content)
                     )))
           (.readAsText rdr the-file)))))
 
@@ -27,7 +26,7 @@
 (.preventDefault evt)
 (set! (.-dropEffect (.-dataTransfer evt)) "copy"))
 
-(defn set-up-drop-zone [id]
+(defn set-up-drop-zone [id f]
 (let [body (aget (.getElementsByTagName js/document "body") 0)
       zone (.createElement js/document "div")]
   (when-let [x (.getElementById js/document id)]
@@ -35,4 +34,4 @@
   (.setAttribute zone "id" id)
   (.appendChild body zone)
   (.addEventListener zone "dragover" handle-drag-over false)
-  (.addEventListener zone "drop" handle-file-select false)))
+  (.addEventListener zone "drop" (partial handle-file-select f) false)))

@@ -24,4 +24,9 @@
 ;   (p/start)
 ;   (p/set-screen main-screen))
 
-(dd/set-up-drop-zone "dropzone")
+(defn hey [name content]
+  (.log js/console (str "hey!  " name))
+
+  (js/process name content))
+
+(dd/set-up-drop-zone "dropzone" hey)
