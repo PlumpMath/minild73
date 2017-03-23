@@ -1,0 +1,7 @@
+{:require  [taptaprevo.core]
+ :init-fns []
+ :compiler-options
+ {:infer-externs true
+  :foreign-libs [{:file "src/taptaprevo/js/beatdetection.js"
+                  :provides ["taptaprevo.beats"]}]
+  :externs ["src/taptaprevo/js/beatdetection.ext.js"]}}
