@@ -1,75 +1,12 @@
-function getPeaksAtThreshold(data, threshold) {
-  var peaksArray = [];
-  var length = data.length;
-  for(var i = 0; i < length;) {
-    if (data[i] > threshold) {
-      peaksArray.push(i);
-      // Skip forward ~ 1/4s to get past this peak.
-      i += 10000;
-    }
-    i++;
-  }
-  return peaksArray;
-}
-
-// Function used to return a histogram of peak intervals
-function countIntervalsBetweenNearbyPeaks(peaks) {
-  var intervalCounts = [];
-  peaks.forEach(function(peak, index) {
-    for(var i = 0; i < 10; i++) {
-      var interval = peaks[index + i] - peak;
-      var foundInterval = intervalCounts.some(function(intervalCount) {
-        if (intervalCount.interval === interval)
-          return intervalCount.count++;
-      });
-      if (!foundInterval) {
-        intervalCounts.push({
-          interval: interval,
-          count: 1
-        });
-      }
-    }
-  });
-  return intervalCounts;
-}
-
-// Function used to return a histogram of tempo candidates.
-function groupNeighborsByTempo(intervalCounts) {
-  var tempoCounts = []
-  intervalCounts.forEach(function(intervalCount, i) {
-    // Convert an interval to tempo
-    var theoreticalTempo = 60 / (intervalCount.interval / 44100 );
-
-    // Adjust the tempo to fit within the 90-180 BPM range
-    while (theoreticalTempo < 90) theoreticalTempo *= 2;
-    while (theoreticalTempo > 180) theoreticalTempo /= 2;
-
-    var foundTempo = tempoCounts.some(function(tempoCount) {
-      if (tempoCount.tempo === theoreticalTempo)
-        return tempoCount.count += intervalCount.count;
-    });
-    if (!foundTempo) {
-      tempoCounts.push({
-        tempo: theoreticalTempo,
-        count: intervalCount.count
-      });
-    }
-  });
-}
-
-function foo() {
-  console.log("foo!");
-}
+// peak detection courtesy of https://github.com/JMPerez/beats-audio-api/blob/gh-pages/script.js
+// and their inspirations.
 
 function process(filename, filecontent) {
-  // console.log('TYPE ', Object.prototype.toString.call(filecontent), filecontent.constructor.name);
 
   // Create offline context
   var OfflineContext = window.OfflineAudioContext || window.webkitOfflineAudioContext;
   var offlineContext = new OfflineContext(2, 30 * 44100, 44100);
 
-  // TODO filecontent here seems to be wrong type.
-  // http://jsfiddle.net/gaJyT/18/
   offlineContext.decodeAudioData(filecontent, function(buffer) {
 
     // Create buffer source
@@ -152,4 +89,100 @@ function process(filename, filecontent) {
 
 
   };
+}
+
+function getPeaks(data) {
+
+  // What we're going to do here, is to divide up our audio into parts.
+
+  // We will then identify, for each part, what the loudest sample is in that
+  // part.
+
+  // It's implied that that sample would represent the most likely 'beat'
+  // within that part.
+
+  // Each part is 0.5 seconds long - or 22,050 samples.
+
+  // This will give us 60 'beats' - we will only take the loudest half of
+  // those.
+
+  // This will allow us to ignore breaks, and allow us to address tracks with
+  // a BPM below 120.
+
+  var partSize = 22050,
+      parts = data[0].length / partSize,
+      peaks = [];
+
+  for (var i = 0; i < parts; i++) {
+    var max = 0;
+    for (var j = i * partSize; j < (i + 1) * partSize; j++) {
+      var volume = Math.max(Math.abs(data[0][j]), Math.abs(data[1][j]));
+      if (!max || (volume > max.volume)) {
+        max = {
+          position: j,
+          volume: volume
+        };
+      }
+    }
+    peaks.push(max);
+  }
+
+  // We then sort the peaks according to volume...
+
+  peaks.sort(function(a, b) {
+    return b.volume - a.volume;
+  });
+
+  // ...take the loundest half of those...
+
+  peaks = peaks.splice(0, peaks.length * 0.5);
+
+  // ...and re-sort it back based on position.
+
+  peaks.sort(function(a, b) {
+    return a.position - b.position;
+  });
+
+  return peaks;
+}
+
+
+
+function getIntervals(peaks) {
+
+  // What we now do is get all of our peaks, and then measure the distance to
+  // other peaks, to create intervals.  Then based on the distance between
+  // those peaks (the distance of the intervals) we can calculate the BPM of
+  // that particular interval.
+
+  // The interval that is seen the most should have the BPM that corresponds
+  // to the track itself.
+
+  var groups = [];
+
+  peaks.forEach(function(peak, index) {
+    for (var i = 1; (index + i) < peaks.length && i < 10; i++) {
+      var group = {
+        tempo: (60 * 44100) / (peaks[index + i].position - peak.position),
+        count: 1
+      };
+
+      while (group.tempo < 90) {
+        group.tempo *= 2;
+      }
+
+      while (group.tempo > 180) {
+        group.tempo /= 2;
+      }
+
+      group.tempo = Math.round(group.tempo);
+
+      if (!(groups.some(function(interval) {
+        return (interval.tempo === group.tempo ? interval.count++ : 0);
+      }))) {
+        groups.push(group);
+      }
+    }
+  });
+  return groups;
 }

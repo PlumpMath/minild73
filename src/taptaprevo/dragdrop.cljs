@@ -4,22 +4,15 @@
   [f evt]
     (.stopPropagation evt)
     (.preventDefault evt)
-    (let [files (.-files (.-dataTransfer evt))]
-      (dotimes [i (.-length files)]
-        (let [rdr (js/FileReader.)
-              the-file (aget files i)]
-          (set! (.-onload rdr)
-                (fn [e]
-                  (let [file-content (.-result (.-target e))
-                        file-name (if (= ";;; " (.substr file-content 0 4))
-                                    (let [idx (.indexOf file-content "\n\n")]
-                                      (.log js/console idx)
-                                      (.slice file-content 4 idx))
-                                    (.-name the-file))]
-                    (.log js/console (str "file-name " file-name))
-                    (f file-name file-content)
-                    )))
-          (.readAsText rdr the-file)))))
+    (let [files (.-files (.-dataTransfer evt))
+          rdr (js/FileReader.)
+          the-file (aget files 0)]
+      (set! (.-onload rdr)
+            (fn [e]
+              (let [file-content (.-result (.-target e))
+                    file-name (.-name the-file)]
+                (f file-name file-content))))
+      (.readAsArrayBuffer rdr the-file)))
 
 (defn handle-drag-over [evt]
 (.stopPropagation evt)
